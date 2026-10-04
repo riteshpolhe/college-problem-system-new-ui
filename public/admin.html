@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Dashboard - College Problem Reporting System</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0f4c81">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+</head>
+<body>
+<header>
+  <h1>Admin Dashboard</h1>
+  <nav><a href="/">Student page</a><a href="#" id="refresh">Refresh</a><a href="#" id="logout">Log out</a></nav>
+</header>
+<main class="wide">
+  <section class="card" id="loginBox" style="max-width:420px;margin:40px auto">
+    <h2>Admin login</h2>
+    <p class="sub">Enter the admin password to manage complaints.</p>
+    <form id="loginForm">
+      <label for="pw">Password</label>
+      <input id="pw" type="password" required>
+      <button class="btn" type="submit">Log in</button>
+    </form>
+    <div id="loginMsg" class="msg err hidden" role="alert"></div>
+  </section>
+
+  <div id="dash" class="hidden">
+    <div class="stats">
+      <div class="stat"><b id="nAll">0</b><span>Total</span></div>
+      <div class="stat"><b id="nPending">0</b><span>Pending</span></div>
+      <div class="stat"><b id="nProg">0</b><span>In progress</span></div>
+      <div class="stat"><b id="nDone">0</b><span>Resolved</span></div>
+    </div>
+    <div class="card">
+      <div class="filters">
+        <input id="q" placeholder="Search by ID, name, roll no, location or text" aria-label="Search">
+        <select id="fStatus" aria-label="Filter by status"><option value="">All statuses</option><option>Pending</option><option>In Progress</option><option>Resolved</option></select>
+        <select id="fCat" aria-label="Filter by category"><option value="">All categories</option><option>Classroom</option><option>Lab / Computer</option><option>Electricity</option><option>Water</option><option>Cleanliness</option><option>Infrastructure</option><option>Other</option></select>
+        <select id="fPri" aria-label="Filter by priority"><option value="">All priorities</option><option>High</option><option>Medium</option><option>Low</option></select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Student</th><th>Problem</th><th>Priority</th><th>Status</th><th>Remark</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div id="empty" class="empty hidden">No complaints match your filters.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let key = sessionStorage.getItem("adminKey") || "";
+let all = [];
+
+async function api(url, opts = {}) {
+  let res;
+  try { res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", "x-admin-key": key } }); }
+  catch { throw new Error("Cannot reach the server. Check your connection."); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(data.error || "Request failed"); e.status = res.status; throw e; }
+  return data;
+}
+
+function showLogin(msg) {
+  sessionStorage.removeItem("adminKey"); key = "";
+  $("dash").classList.add("hidden");
+  $("loginBox").classList.remove("hidden");
+  $("pw").value = "";
+  if (msg) { $("loginMsg").textContent = msg; $("loginMsg").classList.remove("hidden"); }
+}
+
+async function load() {
+  try {
+    all = await api("/api/problems");
+    $("loginMsg").classList.add("hidden");
+    $("loginBox").classList.add("hidden");
+    $("dash").classList.remove("hidden");
+    render();
+  } catch (err) {
+    showLogin(err.status === 401 || !sessionStorage.getItem("adminKey") ? err.message : err.message);
+  }
+}
+
+function render() {
+  const q = $("q").value.toLowerCase(), s = $("fStatus").value, c = $("fCat").value, p = $("fPri").value;
+  $("nAll").textContent = all.length;
+  $("nPending").textContent = all.filter((x) => x.status === "Pending").length;
+  $("nProg").textContent = all.filter((x) => x.status === "In Progress").length;
+  $("nDone").textContent = all.filter((x) => x.status === "Resolved").length;
+
+  const list = all.filter((x) =>
+    (!s || x.status === s) && (!c || x.category === c) && (!p || x.priority === p) &&
+    (!q || [x.id, x.name, x.rollNo, x.location, x.description, x.category].join(" ").toLowerCase().includes(q)));
+
+  $("empty").classList.toggle("hidden", list.length > 0);
+  $("rows").innerHTML = list.map((x) =>
+    "<tr>" +
+    "<td data-label='Complaint'><b>" + esc(x.id) + "</b><br><small>" + new Date(x.createdAt).toLocaleDateString() + "</small></td>" +
+    "<td data-label='Student'>" + esc(x.name) + "<br><small>" + esc(x.rollNo) + "</small></td>" +
+    "<td data-label='Problem'><b>" + esc(x.category) + "</b> - " + esc(x.location) + "<br><small>" + esc(x.description) + "</small></td>" +
+    "<td data-label='Priority' class='p-" + esc(x.priority) + "'>" + esc(x.priority) + "</td>" +
+    "<td data-label='Status'><select data-id='" + esc(x.id) + "' class='st' aria-label='Status for " + esc(x.id) + "'>" +
+      ["Pending","In Progress","Resolved"].map((o) => "<option" + (o === x.status ? " selected" : "") + ">" + o + "</option>").join("") +
+    "</select></td>" +
+    "<td data-label='Remark'><input data-id='" + esc(x.id) + "' class='rm' maxlength='300' value='" + esc(x.remark) + "' placeholder='Add remark' aria-label='Remark for " + esc(x.id) + "'></td>" +
+    "<td><button class='btn small danger' data-del='" + esc(x.id) + "'>Delete</button></td>" +
+    "</tr>").join("");
+}
+
+async function update(id, body) {
+  try {
+    const u = await api("/api/problems/" + id, { method: "PATCH", body: JSON.stringify(body) });
+    all = all.map((x) => (x.id === id ? u : x));
+    render();
+  } catch (err) { if (err.status === 401) showLogin(err.message); else alert(err.message); }
+}
+
+$("rows").addEventListener("change", (e) => {
+  const id = e.target.dataset.id;
+  if (e.target.classList.contains("st")) update(id, { status: e.target.value });
+  if (e.target.classList.contains("rm")) update(id, { remark: e.target.value });
+});
+$("rows").addEventListener("click", async (e) => {
+  const id = e.target.dataset.del;
+  if (!id || !confirm("Delete complaint " + id + "? This cannot be undone.")) return;
+  try { await api("/api/problems/" + id, { method: "DELETE" }); all = all.filter((x) => x.id !== id); render(); }
+  catch (err) { if (err.status === 401) showLogin(err.message); else alert(err.message); }
+});
+["q","fStatus","fCat","fPri"].forEach((id) => $(id).addEventListener("input", render));
+
+$("loginForm").onsubmit = (e) => { e.preventDefault(); key = $("pw").value; sessionStorage.setItem("adminKey", key); load(); };
+$("refresh").onclick = (e) => { e.preventDefault(); if (key) load(); };
+$("logout").onclick = (e) => { e.preventDefault(); sessionStorage.removeItem("adminKey"); key = ""; location.reload(); };
+if (key) load();
+</script>
+<script src="/pwa.js"></script>
+</body>
+</html>
