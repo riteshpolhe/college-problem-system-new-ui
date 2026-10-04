@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>College Issue</title>
+<link rel="stylesheet" href="campusfix.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#080d1f">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+</head>
+<body>
+
+<div id="splash"><img src="logo.png" alt="College Issue"><div class="bar"><i></i></div></div>
+
+<div class="top">
+  <div class="brand"><img src="icon-192.png" alt=""><div>College<span>Issue</span></div></div>
+  <a class="adminLink" href="/admin.html">Admin</a>
+</div>
+
+<main>
+  <!-- HOME -->
+  <section id="v-home">
+    <div class="hero">
+      <h1>Welcome 👋</h1>
+      <p>College ki koi bhi problem report karo aur uska status track karo.</p>
+      <button class="btn" onclick="go('report')">📝 Report a Problem</button>
+    </div>
+    <div class="tiles">
+      <div class="tile" onclick="go('report')"><div class="ic">⚠</div><b>Report</b><small>Nayi complaint daalo</small></div>
+      <div class="tile" onclick="go('track')"><div class="ic">◉</div><b>Track</b><small>Status dekho</small></div>
+    </div>
+    <h3 class="sec">Categories</h3>
+    <div class="cats">
+      <div class="cat"><div>🏫</div>Classroom</div><div class="cat"><div>💻</div>Lab</div>
+      <div class="cat"><div>⚡</div>Electricity</div><div class="cat"><div>💧</div>Water</div>
+      <div class="cat"><div>🧹</div>Cleanliness</div><div class="cat"><div>🏗️</div>Infra</div>
+      <div class="cat"><div>📌</div>Other</div><div class="cat" onclick="go('track')"><div>🔍</div>Track</div>
+    </div>
+  </section>
+
+  <!-- REPORT -->
+  <section class="card hidden" id="v-report">
+    <h2>Report a Problem 📝</h2>
+    <p class="sub">Kya problem hai aur kahan hai, likho. Tumhe complaint ID milegi.</p>
+    <form id="reportForm">
+      <div class="row">
+        <div><label for="name">Your name *</label><input id="name" required maxlength="60"></div>
+        <div><label for="rollNo">Roll number *</label><input id="rollNo" required maxlength="20"></div>
+      </div>
+      <div class="row">
+        <div><label for="category">Category *</label>
+          <select id="category"><option>Classroom</option><option>Lab / Computer</option><option>Electricity</option><option>Water</option><option>Cleanliness</option><option>Infrastructure</option><option>Other</option></select></div>
+        <div><label for="priority">Priority *</label>
+          <select id="priority"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+      </div>
+      <label for="location">Location *</label>
+      <input id="location" required maxlength="80" placeholder="e.g. Room 204, Computer Lab 2">
+      <label for="description">Describe the problem *</label>
+      <textarea id="description" required maxlength="600" placeholder="Problem ke baare mein likho..."></textarea>
+      <button class="btn" id="submitBtn" type="submit">Submit Complaint →</button>
+    </form>
+    <div id="reportMsg" class="msg hidden" role="status"></div>
+  </section>
+
+  <!-- TRACK -->
+  <section class="card hidden" id="v-track">
+    <h2>Track Complaint 🔍</h2>
+    <p class="sub">Complaint ID aur wahi roll number daalo jo report karte time use kiya tha.</p>
+    <form id="trackForm">
+      <label for="trackId">Complaint ID</label>
+      <input id="trackId" required maxlength="30" placeholder="e.g. CPR-2026-0001" autocapitalize="characters" autocomplete="off">
+      <label for="trackRoll">Roll number</label>
+      <input id="trackRoll" required maxlength="20" autocomplete="off">
+      <button class="btn" id="trackBtn" type="submit">Check Status</button>
+    </form>
+    <div id="trackMsg" class="msg hidden" role="status"></div>
+    <dl id="trackResult" class="hidden"></dl>
+  </section>
+</main>
+
+<nav class="bottom">
+  <button id="n-home" class="active" onclick="go('home')"><span>▦</span>Home</button>
+  <button id="n-report" onclick="go('report')"><span>⚠</span>Report</button>
+  <button id="n-track" onclick="go('track')"><span>◉</span>Track</button>
+</nav>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const show = (el, text, cls) => { el.textContent = text; el.className = "msg " + cls; };
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+// splash screen: 2 second baad hat jaata hai
+setTimeout(() => { $("splash").classList.add("out"); }, 2000);
+
+function go(v) {
+  ["home","report","track"].forEach((x) => {
+    $("v-" + x).classList.toggle("hidden", x !== v);
+    $("n-" + x).classList.toggle("active", x === v);
+  });
+  window.scrollTo(0, 0);
+}
+
+$("reportForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = $("submitBtn");
+  if (btn.disabled) return;
+  const body = {};
+  ["name","rollNo","category","priority","location","description"].forEach((k) => body[k] = $(k).value.trim());
+  btn.disabled = true; btn.textContent = "Submitting...";
+  try {
+    const res = await fetch("/api/problems", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Could not submit. Please try again.");
+    show($("reportMsg"), "Complaint submit ho gayi! Your complaint ID: " + data.id + ". Isse save kar lo, track karne ke liye roll number ke saath chahiye.", "ok");
+    $("trackId").value = data.id;
+    $("trackRoll").value = body.rollNo;
+    $("reportForm").reset();
+  } catch (err) {
+    show($("reportMsg"), err instanceof TypeError ? "Server se connect nahi ho paa raha. Internet check karo." : err.message, "err");
+  } finally {
+    btn.disabled = false; btn.textContent = "Submit Complaint →";
+  }
+};
+
+$("trackForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = $("trackBtn");
+  if (btn.disabled) return;
+  $("trackResult").className = "hidden";
+  btn.disabled = true; btn.textContent = "Checking...";
+  try {
+    const res = await fetch("/api/track", { method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ id: $("trackId").value.trim(), rollNo: $("trackRoll").value.trim() }) });
+    const p = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(p.error || "Could not check. Please try again.");
+    $("trackMsg").className = "msg hidden";
+    $("trackResult").className = "";
+    $("trackResult").innerHTML =
+      "<dt>Complaint ID</dt><dd><b>" + esc(p.id) + "</b></dd>" +
+      "<dt>Status</dt><dd><span class='badge s-" + esc(p.status.replace(" ","-")) + "'>" + esc(p.status) + "</span></dd>" +
+      "<dt>Category</dt><dd>" + esc(p.category) + "</dd>" +
+      "<dt>Priority</dt><dd>" + esc(p.priority) + "</dd>" +
+      "<dt>Location</dt><dd>" + esc(p.location) + "</dd>" +
+      "<dt>Problem</dt><dd>" + esc(p.description) + "</dd>" +
+      "<dt>Admin remark</dt><dd>" + esc(p.remark || "-") + "</dd>" +
+      "<dt>Reported on</dt><dd>" + esc(new Date(p.createdAt).toLocaleString()) + "</dd>";
+  } catch (err) {
+    show($("trackMsg"), err instanceof TypeError ? "Server se connect nahi ho paa raha. Internet check karo." : err.message, "err");
+  } finally {
+    btn.disabled = false; btn.textContent = "Check Status";
+  }
+};
+</script>
+<script src="pwa.js"></script>
+</body>
+</html>
