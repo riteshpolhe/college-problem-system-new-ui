@@ -1,0 +1,8 @@
+{
+  "name": "college-problem-system",
+  "version": "1.2.0",
+  "description": "College Problem Reporting System (no dependencies)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=16" }
+}
